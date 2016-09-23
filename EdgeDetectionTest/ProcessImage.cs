@@ -22,7 +22,7 @@ namespace EdgeDetectionTest
 		public int Width { get; private set; }
 		public int Height { get; private set; }
 
-		public OutOfFrameColor OutOfFrameColor = OutOfFrameColor.NoColor;
+		public OutOfFrameColor OutOfFrameColor = OutOfFrameColor.Mirror;
 
 		public SuperColor this [ int x, int y ]
 		{
@@ -46,11 +46,6 @@ namespace EdgeDetectionTest
 				}
 			}
 			set { colorMap [ x, y ] = value; }
-		}
-		public SuperColor this [ Point p ]
-		{
-			get { return this [ p.X, p.Y ]; }
-			set { this [ p.X, p.Y ] = value; }
 		}
 
 		public ProcessImage ( int width, int height )
@@ -99,28 +94,24 @@ namespace EdgeDetectionTest
 			return bitmap;
 		}
 
-		public ProcessImage CopyProcessImage ()
-		{
-			ProcessImage pi = new ProcessImage ( Width, Height );
-
-			return pi;
-		}
-
 		public SuperColor FilterProcess ( int x, int y, Filter filter )
 		{
-			int filterWidthCenter = x - filter.FilterWidth / 2;
-			int filterHeightCenter = y - filter.FilterHeight / 2;
+			int filterWidthCenter = x - filter.FilterHalfWidth;
+			int filterHeightCenter = y - filter.FilterHalfHeight;
 
 			SuperColor total = new SuperColor ();
 			for ( int ty = 0; ty < filter.FilterHeight; ++ty )
+			{
 				for ( int tx = 0; tx < filter.FilterWidth; ++tx )
 				{
 					var c = this [ filterWidthCenter + tx, filterHeightCenter + ty ];
 					c.Multiply ( filter.FilterData [ tx, ty ] );
 					total.Add ( ref c );
 				}
-			
-			return total * filter.Factor + filter.Bias;
+			}
+
+			total.Multiply ( filter.Factor );
+			return total + filter.Bias;
 		}
 
 		public void MakeGrayscale ()

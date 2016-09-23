@@ -11,6 +11,8 @@ namespace EdgeDetectionTest
 		public float [,] FilterData;
 		public int FilterWidth;
 		public int FilterHeight;
+		public int FilterHalfWidth;
+		public int FilterHalfHeight;
 
 		public float Factor = 1;
 		public float Bias = 0;
@@ -21,7 +23,9 @@ namespace EdgeDetectionTest
 		{
 			FilterData = filter;
 			FilterWidth = filter.GetLength ( 0 );
+			FilterHalfWidth = FilterWidth / 2;
 			FilterHeight = filter.GetLength ( 1 );
+			FilterHalfHeight = FilterHeight / 2;
 			if ( FilterWidth % 2 == 0 || FilterHeight % 2 == 0 )
 				throw new ArgumentException ( "Filter's length must have odd number." );
 

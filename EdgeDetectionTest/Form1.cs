@@ -52,7 +52,6 @@ namespace EdgeDetectionTest
 			Text += sw.Elapsed.ToString () + ", ";
 
 			sw.Restart ();
-			//pictureBox1.Image = result.ToBitmap ();
 			result.ToBitmap ( pictureBox1.Image as Bitmap );
 			sw.Stop ();
 			Text += sw.Elapsed.ToString ();
