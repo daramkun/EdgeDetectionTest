@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Text;
@@ -27,24 +28,36 @@ namespace EdgeDetectionTest
 
 		private void button2_Click ( object sender, EventArgs e )
 		{
-			ProcessImage image = new ProcessImage ( pictureBox1.Image as Bitmap );
-			ProcessImage result = new ProcessImage ( pictureBox1.Image as Bitmap, false );
+			Stopwatch sw = new Stopwatch ();
 
-			SuperColor [,] filter = new SuperColor [ 3, 3 ]
+			sw.Start ();
+			ProcessImage image = new ProcessImage ( pictureBox1.Image as Bitmap );
+			ProcessImage result = new ProcessImage ( image.Width, image.Height );
+			sw.Stop ();
+			Text = sw.Elapsed.ToString () + ", ";
+
+			Filter filter = new Filter ( new float [ , ]
 			{
-				{ new SuperColor ( -1.0f ), new SuperColor ( -1.0f ), new SuperColor ( -1.0f ) },
-				{ new SuperColor ( -1.0f ), new SuperColor ( 11.0f ), new SuperColor ( -1.0f ) },
-				{ new SuperColor ( -1.0f ), new SuperColor ( -1.0f ), new SuperColor ( -1.0f ) }
-			};
+				{ 1, 1, 1 },
+				{ 1, -7, 1 },
+				{ 1, 1, 1 },
+			} );
+			sw.Restart ();
 			Parallel.For ( 0, image.Height, ( y ) =>
 			{
 				for ( int x = 0; x < image.Width; ++x )
-				{
-					result [ x, y ] = image.FilterProcess ( x, y, filter ) * ( 1 / 3.0f );
-				}
+					result [ x, y ] = image.FilterProcess ( x, y, filter );
 			} );
+			sw.Stop ();
+			Text += sw.Elapsed.ToString () + ", ";
 
-			pictureBox1.Image = result.ToBitmap ();
+			sw.Restart ();
+			//pictureBox1.Image = result.ToBitmap ();
+			result.ToBitmap ( pictureBox1.Image as Bitmap );
+			sw.Stop ();
+			Text += sw.Elapsed.ToString ();
+
+			Refresh ();
 		}
 	}
 }

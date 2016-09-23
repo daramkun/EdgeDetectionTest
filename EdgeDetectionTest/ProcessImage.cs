@@ -19,10 +19,10 @@ namespace EdgeDetectionTest
 	{
 		SuperColor [,] colorMap;
 
-		public int Width { get { return colorMap.GetLength ( 0 ); } }
-		public int Height { get { return colorMap.GetLength ( 1 ); } }
+		public int Width { get; private set; }
+		public int Height { get; private set; }
 
-		public OutOfFrameColor OutOfFrameColor { get; set; } = OutOfFrameColor.Border;
+		public OutOfFrameColor OutOfFrameColor = OutOfFrameColor.NoColor;
 
 		public SuperColor this [ int x, int y ]
 		{
@@ -34,19 +34,13 @@ namespace EdgeDetectionTest
 				{
 					switch ( OutOfFrameColor )
 					{
-						case OutOfFrameColor.NoColor: return new SuperColor ();
-						case OutOfFrameColor.Border:
-							if ( x < 0 ) x = 0;
-							if ( x >= Width ) x = Width - 1;
-							if ( y < 0 ) y = 0;
-							if ( y >= Height ) y = Height - 1;
-							return colorMap [ x, y ];
 						case OutOfFrameColor.Mirror:
-							x = Math.Abs ( x );
-							y = Math.Abs ( y );
-							x %= Width;
-							y %= Height;
+							return colorMap [ ( ( x + ( x >> 31 ) ) ^ ( x >> 31 ) ) % Width, ( ( y + ( y >> 31 ) ) ^ ( y >> 31 ) ) % Height ];
+						case OutOfFrameColor.Border:
+							if ( x < 0 ) x = 0; else if ( x >= Width ) x = Width - 1;
+							if ( y < 0 ) y = 0; else if ( y >= Height ) y = Height - 1;
 							return colorMap [ x, y ];
+						case OutOfFrameColor.NoColor: return new SuperColor ();
 						default: throw new IndexOutOfRangeException ();
 					}
 				}
@@ -59,71 +53,81 @@ namespace EdgeDetectionTest
 			set { this [ p.X, p.Y ] = value; }
 		}
 
-		public ProcessImage ( Bitmap bitmap, bool copyData = true )
+		public ProcessImage ( int width, int height )
 		{
-			colorMap = new SuperColor [ bitmap.Width, bitmap.Height ];
+			Width = width;
+			Height = height;
+			colorMap = new SuperColor [ Width, Height ];
+		}
 
-			if ( copyData )
+		public ProcessImage ( Bitmap bitmap )
+			: this ( bitmap.Width, bitmap.Height )
+		{
+			var bitmapData = bitmap.LockBits ( new Rectangle ( 0, 0, Width, Height ),
+				System.Drawing.Imaging.ImageLockMode.ReadOnly,
+				System.Drawing.Imaging.PixelFormat.Format32bppArgb );
+
+			Parallel.For ( 0, Height, ( y ) =>
 			{
-				var bitmapData = bitmap.LockBits ( new Rectangle ( 0, 0, bitmap.Width, bitmap.Height ),
-					System.Drawing.Imaging.ImageLockMode.ReadOnly,
-					System.Drawing.Imaging.PixelFormat.Format32bppArgb );
+				int wy = Width * y;
+				for ( int x = 0; x < Width; ++x )
+					colorMap [ x, y ] = new SuperColor ( Marshal.ReadInt32 ( bitmapData.Scan0 + ( ( wy + x ) * 4 ) ) );
+			} );
+			bitmap.UnlockBits ( bitmapData );
+		}
 
-				for ( int y = 0; y < bitmap.Height; ++y )
-				{
-					for ( int x = 0; x < bitmap.Width; ++x )
-					{
-						int currentPosition = ( ( bitmap.Width * y ) + x ) * 4;
-						colorMap [ x, y ] = new SuperColor ( Marshal.ReadInt32 ( bitmapData.Scan0 + currentPosition ) );
-					}
-				}
+		public void ToBitmap ( Bitmap bitmap )
+		{
+			var bitmapData = bitmap.LockBits ( new Rectangle ( 0, 0, bitmap.Width, bitmap.Height ),
+				System.Drawing.Imaging.ImageLockMode.WriteOnly,
+				System.Drawing.Imaging.PixelFormat.Format32bppArgb );
 
-				bitmap.UnlockBits ( bitmapData );
-			}
+			Parallel.For ( 0, Height, ( y ) =>
+			{
+				int wy = Width * y;
+				for ( int x = 0; x < Width; ++x )
+					Marshal.WriteInt32 ( bitmapData.Scan0 + ( ( wy + x ) * 4 ), colorMap [ x, y ].ToArgb () );
+			} );
+
+			bitmap.UnlockBits ( bitmapData );
 		}
 
 		public Bitmap ToBitmap ()
 		{
 			Bitmap bitmap = new Bitmap ( Width, Height );
-
-			var bitmapData = bitmap.LockBits ( new Rectangle ( 0, 0, bitmap.Width, bitmap.Height ),
-				System.Drawing.Imaging.ImageLockMode.WriteOnly,
-				System.Drawing.Imaging.PixelFormat.Format32bppArgb );
-
-			for ( int y = 0; y < bitmap.Height; ++y )
-			{
-				for ( int x = 0; x < bitmap.Width; ++x )
-				{
-					int currentPosition = ( ( bitmap.Width * y ) + x ) * 4;
-					Marshal.WriteInt32 ( bitmapData.Scan0 + currentPosition, colorMap [ x, y ].ToArgb () );
-				}
-			}
-
-			bitmap.UnlockBits ( bitmapData );
-
+			ToBitmap ( bitmap );
 			return bitmap;
 		}
 
-		public SuperColor FilterProcess ( int x, int y, SuperColor [,] filter )
+		public ProcessImage CopyProcessImage ()
 		{
-			int filterWidth = filter.GetLength ( 0 );
-			int filterHeight = filter.GetLength ( 1 );
-			if ( filterWidth % 2 == 0 || filterHeight % 2 == 0 )
-				throw new ArgumentException ( "Filter's length must have odd number." );
-			int filterWidthCenter = filterWidth / 2;
-			int filterHeightCenter = filterHeight / 2;
+			ProcessImage pi = new ProcessImage ( Width, Height );
+
+			return pi;
+		}
+
+		public SuperColor FilterProcess ( int x, int y, Filter filter )
+		{
+			int filterWidthCenter = x - filter.FilterWidth / 2;
+			int filterHeightCenter = y - filter.FilterHeight / 2;
 
 			SuperColor total = new SuperColor ();
-			for ( int ty = -filterHeightCenter; ty < filterHeightCenter; ++ty )
-			{
-				for ( int tx = -filterWidthCenter; tx < filterWidthCenter; ++tx )
+			for ( int ty = 0; ty < filter.FilterHeight; ++ty )
+				for ( int tx = 0; tx < filter.FilterWidth; ++tx )
 				{
-					SuperColor c = this [ x + tx, y + ty ] * filter [ tx + filterWidthCenter, ty + filterHeightCenter ];
-					total += c;
+					var c = this [ filterWidthCenter + tx, filterHeightCenter + ty ];
+					c.Multiply ( filter.FilterData [ tx, ty ] );
+					total.Add ( ref c );
 				}
-			}
+			
+			return total * filter.Factor + filter.Bias;
+		}
 
-			return total;
+		public void MakeGrayscale ()
+		{
+			for ( int y = 0; y < Height; ++y )
+				for ( int x = 0; x < Width; ++x )
+					colorMap [ x, y ] = colorMap [ x, y ].ToGrayscale ();
 		}
 	}
 }

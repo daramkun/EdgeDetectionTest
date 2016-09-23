@@ -9,50 +9,76 @@ namespace EdgeDetectionTest
 {
 	public struct SuperColor
 	{
-		public float A { get; set; }
-		public float R { get; set; }
-		public float G { get; set; }
-		public float B { get; set; }
+		public float R, G, B;
 
-		public SuperColor ( float a, float r, float g, float b )
-			: this () { A = a; R = r; G = g; B = b; }
+		public SuperColor ( float r, float g, float b ) { R = r; G = g; B = b; }
 		public SuperColor ( Color color )
-			: this ( color.A / 255.0f, color.R / 255.0f, color.G / 255.0f, color.B / 255.0f ) { }
-		public SuperColor ( int argbColor ) : this ( Color.FromArgb( argbColor ) ) { }
-		public SuperColor ( float s ) : this ( 1, s, s, s ) { }
+			: this ( color.R / 255.0f, color.G / 255.0f, color.B / 255.0f ) { }
+		public SuperColor ( int argbColor )
+		{
+			R = ( ( argbColor >> 16 ) & 0xff ) / 255.0f;
+			G = ( ( argbColor >> 8 ) & 0xff ) / 255.0f;
+			B = ( argbColor & 0xff ) / 255.0f;
+		}
+		public SuperColor ( float s ) : this ( s, s, s ) { }
 
 		public int ToArgb ()
 		{
-			if ( A > 1 ) A = 1; else if ( A < 0 ) A = 0;
-			if ( R > 1 ) R = 1; else if ( R < 0 ) R = 0;
-			if ( G > 1 ) G = 1; else if ( G < 0 ) G = 0;
-			if ( B > 1 ) B = 1; else if ( B < 0 ) B = 0;
-			return Color.FromArgb ( ( int ) ( A * 255 ), ( int ) ( R * 255 ), ( int ) ( G * 255 ), ( int ) ( B * 255 ) ).ToArgb ();
+			int r = ( int ) ( ( ( R > 1 ) ? 1 : ( R < 0 ? 0 : R ) ) * 255 ),
+				g = ( int ) ( ( ( G > 1 ) ? 1 : ( G < 0 ? 0 : G ) ) * 255 ),
+				b = ( int ) ( ( ( B > 1 ) ? 1 : ( B < 0 ? 0 : B ) ) * 255 );
+			return ( int ) ( 0xff000000 + ( r << 16 ) + ( g << 8 ) + b );
+		}
+
+		public override string ToString () { return $"R:{( int ) ( R * 255 )}, G:{( int ) ( G * 255 )}, B:{( int ) ( B * 255 )}"; }
+
+		public SuperColor ToGrayscale () { float c = ( R + G + B ) / 3; return new SuperColor ( c, c, c ); }
+
+		public void Add ( ref SuperColor c )
+		{
+			R += c.R;
+			G += c.G;
+			B += c.B;
+		}
+
+		public void Multiply ( float s )
+		{
+			R *= s;
+			G *= s;
+			B *= s;
 		}
 
 		public static SuperColor operator + ( SuperColor c1, SuperColor c2 )
 		{
-			return new SuperColor ( c1.A + c2.A, c1.R + c2.R, c1.G + c2.G, c1.B + c2.B );
+			return new SuperColor ( c1.R + c2.R, c1.G + c2.G, c1.B + c2.B );
+		}
+		public static SuperColor operator + ( SuperColor c1, float s )
+		{
+			return new SuperColor ( c1.R + s, c1.G + s, c1.B + s );
 		}
 		public static SuperColor operator - ( SuperColor c1, SuperColor c2 )
 		{
-			return new SuperColor ( c1.A - c2.A, c1.R - c2.R, c1.G - c2.G, c1.B - c2.B );
+			return new SuperColor ( c1.R - c2.R, c1.G - c2.G, c1.B - c2.B );
+		}
+		public static SuperColor operator - ( SuperColor c1, float s )
+		{
+			return new SuperColor ( c1.R - s, c1.G - s, c1.B - s );
 		}
 		public static SuperColor operator * ( SuperColor c1, SuperColor c2 )
 		{
-			return new SuperColor ( c1.A * c2.A, c1.R * c2.R, c1.G * c2.G, c1.B * c2.B );
+			return new SuperColor ( c1.R * c2.R, c1.G * c2.G, c1.B * c2.B );
 		}
 		public static SuperColor operator * ( SuperColor c1, float s )
 		{
-			return new SuperColor ( c1.A * s, c1.R * s, c1.G * s, c1.B * s );
+			return new SuperColor ( c1.R * s, c1.G * s, c1.B * s );
 		}
 		public static SuperColor operator / ( SuperColor c1, SuperColor c2 )
 		{
-			return new SuperColor ( c1.A / c2.A, c1.R / c2.R, c1.G / c2.G, c1.B / c2.B );
+			return new SuperColor ( c1.R / c2.R, c1.G / c2.G, c1.B / c2.B );
 		}
 		public static SuperColor operator / ( SuperColor c1, float s )
 		{
-			return new SuperColor ( c1.A / s, c1.R / s, c1.G / s, c1.B / s );
+			return new SuperColor ( c1.R / s, c1.G / s, c1.B / s );
 		}
 	}
 }
