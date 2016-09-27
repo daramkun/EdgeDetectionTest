@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace EdgeDetectionTest
@@ -13,6 +14,12 @@ namespace EdgeDetectionTest
 		NoColor,
 		Border,
 		Mirror,
+	}
+
+	public enum ScaleMethod
+	{
+		Nearest,
+		Bilinear,
 	}
 
 	public class ProcessImage
@@ -71,6 +78,27 @@ namespace EdgeDetectionTest
 			bitmap.UnlockBits ( bitmapData );
 		}
 
+		public ProcessImage ( ProcessImage original, int width, int height, ScaleMethod scaleMethod = ScaleMethod.Nearest )
+			: this ( width, height )
+		{
+			switch ( scaleMethod )
+			{
+				case ScaleMethod.Nearest:
+					{
+						float widthRatio = ( float ) original.Width / Width;
+						float heightRatio = ( float ) original.Height / Height;
+						Parallel.For ( 0, Height, ( y ) =>
+						{
+							for ( int x = 0; x < Width; ++x )
+								colorMap [ x, y ] = original [ ( int ) ( x * widthRatio ), ( int ) ( y * heightRatio ) ];
+						} );
+					}
+					break;
+				case ScaleMethod.Bilinear:
+					throw new NotImplementedException ();
+			}
+		}
+
 		public void ToBitmap ( Bitmap bitmap )
 		{
 			var bitmapData = bitmap.LockBits ( new Rectangle ( 0, 0, bitmap.Width, bitmap.Height ),
@@ -116,9 +144,62 @@ namespace EdgeDetectionTest
 
 		public void MakeGrayscale ()
 		{
-			for ( int y = 0; y < Height; ++y )
+			Parallel.For ( 0, Height, ( y ) =>
+			{
 				for ( int x = 0; x < Width; ++x )
 					colorMap [ x, y ] = colorMap [ x, y ].ToGrayscale ();
+			} );
+		}
+
+		public void MakeHSV ()
+		{
+			Parallel.For ( 0, Height, ( y ) =>
+			{
+				for ( int x = 0; x < Width; ++x )
+					colorMap [ x, y ] = colorMap [ x, y ].ToHSV ();
+			} );
+		}
+
+		public void MakeRGB ()
+		{
+			Parallel.For ( 0, Height, ( y ) =>
+			{
+				for ( int x = 0; x < Width; ++x )
+					colorMap [ x, y ] = SuperColor.FromHSV ( colorMap [ x, y ] );
+			} );
+		}
+
+		private long [] GetColorCount ()
+		{
+			long [] counts = new long [ 256 ];
+			Parallel.For ( 0, Height, ( y ) =>
+			{
+				for ( int x = 0; x < Width; ++x )
+					Interlocked.Increment ( ref counts [ ( int ) ( colorMap [ x, y ].B * 255 ) ] );
+			} );
+			return counts;
+		}
+
+		private void GetColorCountRounded ( long [] c )
+		{
+			for ( int i = 1; i < 256; ++i )
+				c [ i ] += c [ i - 1 ];
+			double unit = 1 / ( double ) c [ 255 ];
+			for ( int i = 0; i < 256; ++i )
+				c [ i ] = ( uint ) Math.Ceiling ( ( c [ i ] * unit ) * 255 );
+		}
+
+		public void HistogramEqualization ()
+		{
+			MakeHSV ();
+			long [] colorCount = GetColorCount ();
+			GetColorCountRounded ( colorCount );
+			Parallel.For ( 0, Height, ( y ) =>
+			{
+				for ( int x = 0; x < Width; ++x )
+					colorMap [ x, y ].B = colorCount [ ( int ) ( colorMap [ x, y ].B * 255 ) ] / 255f;
+			} );
+			MakeRGB ();
 		}
 	}
 }

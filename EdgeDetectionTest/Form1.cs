@@ -32,7 +32,8 @@ namespace EdgeDetectionTest
 
 			sw.Start ();
 			ProcessImage image = new ProcessImage ( pictureBox1.Image as Bitmap );
-			ProcessImage result = new ProcessImage ( image.Width, image.Height );
+			//ProcessImage image2 = new ProcessImage ( image, image.Width / 2, image.Height / 2, ScaleMethod.Nearest );
+			//ProcessImage result = new ProcessImage ( image.Width / 2, image.Height /2 );
 			sw.Stop ();
 			Text = sw.Elapsed.ToString () + ", ";
 
@@ -43,20 +44,30 @@ namespace EdgeDetectionTest
 				{ 1, 1, 1 },
 			} );
 			sw.Restart ();
-			Parallel.For ( 0, image.Height, ( y ) =>
+			/*Parallel.For ( 0, image2.Height, ( y ) =>
 			{
-				for ( int x = 0; x < image.Width; ++x )
-					result [ x, y ] = image.FilterProcess ( x, y, filter );
-			} );
+				for ( int x = 0; x < image2.Width; ++x )
+					result [ x, y ] = image2.FilterProcess ( x, y, filter );
+			} );*/
+			image.HistogramEqualization ();
 			sw.Stop ();
 			Text += sw.Elapsed.ToString () + ", ";
 
 			sw.Restart ();
-			result.ToBitmap ( pictureBox1.Image as Bitmap );
+			//result.ToBitmap ( pictureBox1.Image as Bitmap );
+			Image temp = pictureBox1.Image;
+			pictureBox1.Image = image.ToBitmap ();
+			//pictureBox1.Image = result.ToBitmap ();
+			temp.Dispose ();
 			sw.Stop ();
 			Text += sw.Elapsed.ToString ();
 
 			Refresh ();
+
+			image = null;
+			//image2 = null;
+			//result = null;
+			GC.Collect ();
 		}
 	}
 }
