@@ -151,7 +151,7 @@ namespace EdgeDetectionTest
 			} );
 		}
 
-		public void MakeHSV ()
+		public void MakeHSVFromRGB ()
 		{
 			Parallel.For ( 0, Height, ( y ) =>
 			{
@@ -160,7 +160,7 @@ namespace EdgeDetectionTest
 			} );
 		}
 
-		public void MakeRGB ()
+		public void MakeRGBFromHSV ()
 		{
 			Parallel.For ( 0, Height, ( y ) =>
 			{
@@ -169,6 +169,7 @@ namespace EdgeDetectionTest
 			} );
 		}
 
+		#region Private methods for Histogram Equalization
 		private long [] GetColorCount ()
 		{
 			long [] counts = new long [ 256 ];
@@ -188,10 +189,11 @@ namespace EdgeDetectionTest
 			for ( int i = 0; i < 256; ++i )
 				c [ i ] = ( uint ) Math.Ceiling ( ( c [ i ] * unit ) * 255 );
 		}
+		#endregion
 
-		public void HistogramEqualization ()
+		public void ApplyHistogramEqualization ()
 		{
-			MakeHSV ();
+			MakeHSVFromRGB ();
 			long [] colorCount = GetColorCount ();
 			GetColorCountRounded ( colorCount );
 			Parallel.For ( 0, Height, ( y ) =>
@@ -199,7 +201,57 @@ namespace EdgeDetectionTest
 				for ( int x = 0; x < Width; ++x )
 					colorMap [ x, y ].B = colorCount [ ( int ) ( colorMap [ x, y ].B * 255 ) ] / 255f;
 			} );
-			MakeRGB ();
+			MakeRGBFromHSV ();
+		}
+
+		public Func<float, bool> GetSingleThreshold ()
+		{
+			long [] colorCount = GetColorCount ();
+			long largestDiscount = 0;
+			int largestDiscountIndex = -1;
+			for ( int i = 1; i < 256; ++i )
+			{
+				long discount = Math.Abs ( colorCount [ i ] - colorCount [ i - 1 ] );
+				if ( largestDiscount <= discount )
+				{
+					largestDiscount = discount;
+					largestDiscountIndex = i;
+				}
+			}
+			float t = largestDiscountIndex / 255f;
+			return ( c ) => { return ( c >= t ); };
+		}
+
+		public Func<float, bool> GetDoubleThreshold ()
+		{
+			long [] colorCount = GetColorCount ();
+			long largestDiscount = 0, largestDiscount2 = 0;
+			int largestDiscountIndex = -9999999, largestDiscountIndex2 = -9999999;
+			for ( int i = 1; i < 256; ++i )
+			{
+				long discount = Math.Abs ( colorCount [ i ] - colorCount [ i - 1 ] );
+				if ( largestDiscount <= discount )
+				{
+					largestDiscount2 = largestDiscount;
+					largestDiscountIndex2 = largestDiscountIndex;
+					largestDiscount = discount;
+					largestDiscountIndex = i;
+				}
+			}
+			float t = Math.Min ( largestDiscountIndex, largestDiscountIndex2 ) / 255f, t2 = Math.Max ( largestDiscountIndex, largestDiscountIndex2 ) / 255f;
+			return ( c ) => { return ( c >= t && c <= t2 ); };
+		}
+
+		public void ApplyThreshold ( Func<float, bool> threshold = null )
+		{
+			MakeGrayscale ();
+			if ( threshold == null )
+				threshold = ( c ) => { return c >= 0.5f; };
+			Parallel.For ( 0, Height, ( y ) =>
+			{
+				for ( int x = 0; x < Width; ++x )
+					colorMap [ x, y ].R = colorMap [ x, y ].G = colorMap [ x, y ].B = threshold ( colorMap [ x, y ].R ) ? 1 : 0;
+			} );
 		}
 	}
 }

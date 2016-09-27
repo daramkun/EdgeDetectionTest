@@ -55,6 +55,14 @@ namespace EdgeDetectionTest
 
 		public override string ToString () { return $"R:{( int ) ( R * 255 )}, G:{( int ) ( G * 255 )}, B:{( int ) ( B * 255 )}"; }
 
+		public SuperColor ToCorrection ()
+		{
+			float r = ( ( R > 1 ) ? 1 : ( R < 0 ? 0 : R ) ),
+				g = ( ( G > 1 ) ? 1 : ( G < 0 ? 0 : G ) ),
+				b = ( ( B > 1 ) ? 1 : ( B < 0 ? 0 : B ) );
+			return new SuperColor ( r, g, b );
+		}
+
 		public SuperColor ToGrayscale ()
 		{
 			float c = ( ( ( 299 * ( ( int ) R * 255 ) ) + ( 587 * ( ( int ) G * 255 ) ) + ( 114 * ( ( int ) B * 255 ) ) ) / 1000 ) / 255.0f;
